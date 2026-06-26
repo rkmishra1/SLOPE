@@ -1,215 +1,257 @@
 import numpy as np
-from numpy.typing import ArrayLike, NDArray
 from scipy.stats import norm
 
-
-def fast_prox_sl1(y: NDArray, lmbda: NDArray) -> NDArray:
+def fast_prox_sl1(y, lmbda):
     """
-    FastProxSL1 via pool-adjacent-violators (Algorithm 4, Bogdan et al. 2015).
-
-    Parameters
-    ----------
-    y : non-negative, non-increasing 1-D array
-    lmbda : non-negative, non-increasing 1-D array, same length as y
-
-    Returns
-    -------
-    x : non-negative, non-increasing 1-D array
+    Stack-based algorithm for FastProxSL1 (Algorithm 4 in Bogdan et al., 2015).
+    Inputs:
+        y: non-negative, non-increasing 1D numpy array
+        lmbda: non-negative, non-increasing 1D numpy array of same shape
+    Returns:
+        x: non-negative, non-increasing 1D numpy array of same shape
     """
     n = len(y)
-    # Each entry: [start, end, sum(y-lmbda), thresholded_avg]
-    stack: list[list] = []
-
+    # The stack will hold blocks represented as dicts:
+    # 'i': start index of block (0-based)
+    # 'j': end index of block (0-based)
+    # 's': sum of (y_k - lmbda_k) for elements in block
+    # 'w': thresholded average: max(0.0, sum / size)
+    stack = []
+    
     for k in range(n):
         val = y[k] - lmbda[k]
-        stack.append([k, k, val, max(0.0, val)])
-
-        # merge while monotonicity is violated: w_{t-1} <= w_t
-        while len(stack) > 1 and stack[-2][3] <= stack[-1][3]:
-            b = stack.pop()
-            p = stack[-1]
-            p[1] = b[1]
-            p[2] += b[2]
-            p[3] = max(0.0, p[2] / (p[1] - p[0] + 1))
-
+        block = {
+            'i': k,
+            'j': k,
+            's': val,
+            'w': max(0.0, val)
+        }
+        stack.append(block)
+        
+        # Merge while the stack has more than 1 block and monotonicity is violated:
+        # w_{t-1} <= w_t (using 0-based indexing: stack[-2]['w'] <= stack[-1]['w'])
+        while len(stack) > 1 and stack[-2]['w'] <= stack[-1]['w']:
+            b_top = stack.pop()
+            b_prev = stack[-1]
+            
+            # Merge top into prev
+            b_prev['j'] = b_top['j']
+            b_prev['s'] = b_prev['s'] + b_top['s']
+            size = b_prev['j'] - b_prev['i'] + 1
+            b_prev['w'] = max(0.0, b_prev['s'] / size)
+            
+    # Reconstruct x from stack blocks
     x = np.zeros(n)
-    for b in stack:
-        x[b[0] : b[1] + 1] = b[3]
+    for block in stack:
+        x[block['i']:block['j']+1] = block['w']
+        
     return x
 
-
-def prox_sorted_l1(v: ArrayLike, lmbda: ArrayLike) -> NDArray:
+def prox_sorted_l1(v, lmbda):
     """
-    Proximal operator of the sorted L1 norm.
-
-    Solves: argmin_x  0.5 ||v - x||^2 + sum_i lmbda_i |x|_(i)
+    Computes the proximal operator of the sorted L1 norm of v with weights lmbda.
+    prox_J(v) = argmin_x 0.5 * ||v - x||_2^2 + sum(lmbda_i * |x|_(i))
     """
-    v = np.asarray(v, dtype=float)
-    lmbda = np.asarray(lmbda, dtype=float)
-
+    v = np.asarray(v)
+    lmbda = np.asarray(lmbda)
+    
+    # Save signs and take absolute values
     s = np.sign(v)
     y = np.abs(v)
+    
+    # Sort y in descending order, keeping track of the permutation
     sort_idx = np.argsort(y)[::-1]
-    x_sorted = fast_prox_sl1(y[sort_idx], lmbda)
-    return x_sorted[np.argsort(sort_idx)] * s
+    y_sorted = y[sort_idx]
+    
+    # Run the stack-based FastProxSL1 algorithm
+    x_sorted = fast_prox_sl1(y_sorted, lmbda)
+    
+    # Restore the original order (unsort)
+    unsort_idx = np.argsort(sort_idx)
+    x = x_sorted[unsort_idx]
+    
+    # Restore the signs
+    res = x * s
+    return res
 
-
-def fista_slope(
-    X: ArrayLike,
-    y: ArrayLike,
-    lmbda: ArrayLike,
-    max_iter: int = 1000,
-    tol: float = 1e-6,
-) -> NDArray:
+def fista_slope(X, y, lmbda, max_iter=1000, tol=1e-6):
     """
-    FISTA solver for SLOPE (Algorithm 2, Bogdan et al. 2015).
-
-    Parameters
-    ----------
-    X : (n, p) design matrix
-    y : (n,) response vector
-    lmbda : (p,) non-increasing penalty sequence
+    FISTA algorithm for SLOPE (Algorithm 2 in Bogdan et al., 2015).
+    X: design matrix (n x p)
+    y: response vector (n)
+    lmbda: sorted penalization sequence (p)
     """
-    X = np.asarray(X, dtype=float)
-    y = np.asarray(y, dtype=float)
-    lmbda = np.asarray(lmbda, dtype=float)
-
-    p = X.shape[1]
-    L = np.linalg.norm(X, ord=2) ** 2  # Lipschitz constant
-
+    X = np.asarray(X)
+    y = np.asarray(y)
+    lmbda = np.asarray(lmbda)
+    
+    n, p = X.shape
+    
+    # Compute Lipschitz constant L = ||X||_2^2
+    L = np.linalg.norm(X, ord=2) ** 2
+    
+    # Initialize variables
     beta = np.zeros(p)
     a = np.zeros(p)
-    t = 1.0
-
-    for _ in range(max_iter):
-        beta_new = prox_sorted_l1(a - X.T @ (X @ a - y) / L, lmbda / L)
-
+    t_fista = 1.0
+    
+    for i in range(max_iter):
+        # Gradient of the smooth term: X^T (X a - y)
+        grad = X.T.dot(X.dot(a) - y)
+        v = a - (1.0 / L) * grad
+        
+        # Proximal step with step size 1/L
+        beta_new = prox_sorted_l1(v, lmbda / L)
+        
+        # Check convergence
         if np.linalg.norm(beta_new - beta, ord=np.inf) < tol:
-            return beta_new
-
-        t_new = 0.5 * (1.0 + np.sqrt(1.0 + 4.0 * t**2))
-        a = beta_new + ((t - 1.0) / t_new) * (beta_new - beta)
-        beta, t = beta_new, t_new
-
+            beta = beta_new
+            break
+            
+        # Update FISTA parameters
+        t_new = 0.5 * (1.0 + np.sqrt(1.0 + 4.0 * (t_fista ** 2)))
+        a = beta_new + ((t_fista - 1.0) / t_new) * (beta_new - beta)
+        
+        beta = beta_new
+        t_fista = t_new
+        
     return beta
 
-
-def scaled_slope(
-    X: ArrayLike,
-    y: ArrayLike,
-    q: float,
-    design_type: str = "gaussian",
-    max_iter: int = 100,
-    tol: float = 1e-4,
-) -> tuple[NDArray, float]:
+def scaled_slope(X, y, q, design_type='gaussian', max_iter=100, tol=1e-4):
     """
-    Iterative SLOPE with unknown sigma (Algorithm 5, Bogdan et al. 2015).
-
-    Returns
-    -------
-    beta : coefficient vector
-    sigma_est : estimated noise standard deviation
+    Iterative SLOPE fitting when sigma is unknown (Algorithm 5 in Bogdan et al., 2015).
     """
-    X = np.asarray(X, dtype=float)
-    y = np.asarray(y, dtype=float)
     n, p = X.shape
-
-    l_s = lambda_bh(p, q) if design_type == "orthogonal" else lambda_g_star(n, p, q)
-
-    S: set[int] = set()
+    
+    # 1. Compute initial sequence lambda_S for sigma = 1
+    if design_type == 'orthogonal':
+        l_s = lambda_bh(p, q, sigma=1.0)
+    else:
+        l_s = lambda_g_star(n, p, q, sigma=1.0)
+        
+    # Initialize: S = empty set
+    S = set()
     beta = np.zeros(p)
-    sigma_est = float(np.std(y))
-
-    for _ in range(max_iter):
+    sigma_est = np.std(y) # Initial estimate
+    
+    for iteration in range(max_iter):
+        # Compute RSS by regressing y onto variables in S
         if len(S) == 0:
-            rss, df = float(np.sum(y**2)), n - 1
+            rss = np.sum(y**2)
+            df = n - 1
         else:
             S_list = list(S)
             X_S = X[:, S_list]
-            resid = y - X_S @ (np.linalg.pinv(X_S) @ y)
-            rss, df = float(np.sum(resid**2)), n - len(S) - 1
-
-        sigma_new = float(np.sqrt(rss / max(1.0, df)))
-        beta_new = fista_slope(X, y, sigma_new * l_s)
-        S_new = set(int(i) for i in np.where(np.abs(beta_new) > 1e-5)[0])
-
-        if S_new == S and abs(sigma_new - sigma_est) < tol:
-            return beta_new, sigma_new
-
-        S, beta, sigma_est = S_new, beta_new, sigma_new
-
+            # Use pseudoinverse for stable OLS
+            beta_ols = np.linalg.pinv(X_S).dot(y)
+            residuals = y - X_S.dot(beta_ols)
+            rss = np.sum(residuals**2)
+            df = n - len(S) - 1
+            
+        sigma_est_new = np.sqrt(rss / max(1.0, df))
+        
+        # Fit SLOPE with parameter sequence sigma_est * l_s
+        lmbda = sigma_est_new * l_s
+        beta_new = fista_slope(X, y, lmbda)
+        
+        S_new = set(np.where(np.abs(beta_new) > 1e-5)[0])
+        
+        # Check convergence of support set and estimate
+        if S_new == S and np.abs(sigma_est_new - sigma_est) < tol:
+            beta = beta_new
+            sigma_est = sigma_est_new
+            break
+            
+        S = S_new
+        beta = beta_new
+        sigma_est = sigma_est_new
+        
     return beta, sigma_est
 
-
-def lambda_bh(p: int, q: float, sigma: float = 1.0) -> NDArray:
-    """Benjamini-Hochberg penalty sequence: lambda_i = sigma * Phi^{-1}(1 - iq / 2p)."""
+def lambda_bh(p, q, sigma=1.0):
+    """
+    Benjamini-Hochberg critical sequence.
+    lambda_i = sigma * Phi^-1(1 - i * q / 2p)
+    """
     i = np.arange(1, p + 1)
     return sigma * norm.ppf(1.0 - i * q / (2.0 * p))
 
-
-def lambda_g_star(n: int, p: int, q: float, sigma: float = 1.0) -> NDArray:
+def lambda_g_star(n, p, q, sigma=1.0):
     """
-    Gaussian-adjusted penalty sequence lambda_G* (Section 3.2.2, Bogdan et al. 2015).
-
-    Recursively inflates lambda_BH by the Wishart correction, then flattens
-    from the global minimum k* onward to preserve convexity.
+    Adjusted sequence lambda_G* for Gaussian designs (Section 3.2.2 in Bogdan et al., 2015).
     """
     l_bh = lambda_bh(p, q, sigma=sigma)
     l_g = np.zeros(p)
     l_g[0] = l_bh[0]
-
+    
+    # Compute recursively up to min(p, n-1)
     limit = min(p, n - 1)
-    sum_sq = l_g[0] ** 2
+    
+    sum_sq = l_g[0]**2
     for i in range(1, limit):
-        l_g[i] = l_bh[i] * np.sqrt(1.0 + sum_sq / (n - i - 1))
-        sum_sq += l_g[i] ** 2
-
+        # i in python (0-based) represents element i+1 (1-based)
+        # w(i) = 1 / (n - i - 1)
+        val = 1.0 + (1.0 / (n - (i + 1))) * sum_sq
+        l_g[i] = l_bh[i] * np.sqrt(val)
+        sum_sq += l_g[i]**2
+        
+    # If p >= n, we pad the remaining entries to prevent numerical issues
     if p >= n:
         l_g[limit:] = np.inf
-
-    k_star = int(np.argmin(l_g[: limit + 1] if p < n else l_g[:limit]))
-    l_g_star = l_g.copy()
-    l_g_star[k_star:] = l_g[k_star]
+        
+    # Find the global minimum k*
+    k_star = np.argmin(l_g[:limit+1] if p < n else l_g[:limit])
+    val_k_star = l_g[k_star]
+    
+    l_g_star = np.copy(l_g)
+    l_g_star[k_star:] = val_k_star
+    
+    # Make sure we don't have inf values
     if p >= n:
-        l_g_star[limit:] = l_g[k_star]
-
+        l_g_star[limit:] = val_k_star
+        
     return l_g_star
 
-
-def lambda_mc(
-    X: ArrayLike,
-    q: float,
-    sigma: float = 1.0,
-    num_draws: int = 500,
-    max_k: int = 100,
-) -> NDArray:
+def lambda_mc(X, q, sigma=1.0, num_draws=500, max_k=100):
     """
-    Monte Carlo adjusted penalty sequence lambda_MC (Section 3.2.2, Bogdan et al. 2015).
+    Computes the Monte Carlo adjusted sequence lambda_MC (Section 3.2.2 in Bogdan et al., 2015).
     """
-    X = np.asarray(X, dtype=float)
     n, p = X.shape
     l_bh = lambda_bh(p, q, sigma=sigma)
     l_mc = np.zeros(p)
     l_mc[0] = l_bh[0]
-
+    
     limit = min(p, n - 1, max_k)
+    
     for i in range(1, limit):
         u_sq_sum = 0.0
         for _ in range(num_draws):
-            S_idx = np.random.choice(p, size=i, replace=False)
-            S_set = set(S_idx.tolist())
-            j = int(np.random.choice([x for x in range(p) if x not in S_set]))
-
-            X_S, X_j = X[:, S_idx], X[:, j]
-            A = X_S.T @ X_S
+            # Select S of size i
+            S_indices = np.random.choice(p, size=i, replace=False)
+            # Select j not in S
+            j_candidate = np.random.choice(p)
+            while j_candidate in S_indices:
+                j_candidate = np.random.choice(p)
+                
+            X_S = X[:, S_indices]
+            X_j = X[:, j_candidate]
+            
+            l_slice = l_mc[:i]
+            
             try:
-                h = np.linalg.solve(A, l_mc[:i])
+                h = np.linalg.solve(X_S.T.dot(X_S), l_slice)
+                u = X_j.dot(X_S.dot(h))
+                u_sq_sum += u**2
             except np.linalg.LinAlgError:
-                h = np.linalg.pinv(A) @ l_mc[:i]
-            u_sq_sum += float(X_j @ (X_S @ h)) ** 2
-
-        l_mc[i] = l_bh[i] * np.sqrt(1.0 + u_sq_sum / num_draws)
-
-    k_star = int(np.argmin(l_mc[:limit]))
-    l_mc[k_star:] = l_mc[k_star]
+                h = np.linalg.pinv(X_S.T.dot(X_S)).dot(l_slice)
+                u = X_j.dot(X_S.dot(h))
+                u_sq_sum += u**2
+                
+        mean_u_sq = u_sq_sum / num_draws
+        l_mc[i] = l_bh[i] * np.sqrt(1.0 + mean_u_sq)
+        
+    k_star = np.argmin(l_mc[:limit])
+    val_k_star = l_mc[k_star]
+    l_mc[k_star:] = val_k_star
+    
     return l_mc
