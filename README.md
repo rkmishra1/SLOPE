@@ -42,7 +42,9 @@ $$\lambda_G(i) = \lambda_{\mathrm{BH}}(i)\sqrt{1 + \frac{1}{n-i}\sum_{j < i}\lam
 
 then flattens at the global minimum $k^{*}$ to preserve convexity:
 
-$$\lambda_{G}^{*}(i) = \lambda_G\left(\min(i, k^{*})\right)$$
+$$
+\lambda_{G}^{*}(i) = \lambda_{G}\left(\min(i, k^{*})\right)
+$$
 
 ---
 
