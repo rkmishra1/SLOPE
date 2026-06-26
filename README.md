@@ -34,7 +34,7 @@ where $|b|_{(1)} \ge \cdots \ge |b|_{(p)}$ are the sorted absolute coefficients 
 
 | Sequence | Formula | Use when |
 |:---|:---|:---|
-| **BH** $(\lambda_{BH})$ | $\sigma\;\Phi^{-1}\left(1 - \frac{iq}{2p}\right)$ | Orthogonal / independent designs |
+| **BH** $(\lambda_{BH})$ | $\sigma\Phi^{-1}\left(1 - \frac{iq}{2p}\right)$ | Orthogonal / independent designs |
 | **Gaussian** $(\lambda_G^*)$ | Wishart-corrected BH, flattened at global min $k^*$ | Gaussian / correlated designs |
 
 The Gaussian sequence inflates BH recursively to account for correlations:
