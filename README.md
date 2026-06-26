@@ -26,7 +26,7 @@ Reproduces the simulations and benchmark from:
 
 SLOPE minimizes a sorted-L1-penalized least squares objective:
 
-$$\hat{\beta} =\; \underset{b \in \mathbb{R}^p}{\arg\min} \;\frac{1}{2}\|y - Xb\|_2^2 +\; \sum_{i=1}^p \lambda_i \,|b|_{(i)}$$
+$$\hat{\beta} = \underset{b \in \mathbb{R}^p}{\arg\min} \frac{1}{2}\|y - Xb\|_2^2 + \sum_{i=1}^p \lambda_i \,|b|_{(i)}$$
 
 where $|b|_{(1)} \ge \cdots \ge |b|_{(p)}$ are the sorted absolute coefficients and $\lambda_1 \ge \cdots \ge \lambda_p \ge 0$ is a non-increasing penalty sequence that controls the **False Discovery Rate**.
 
@@ -41,7 +41,7 @@ The Gaussian sequence inflates BH recursively to account for correlations:
 
 $$\lambda_G(i) = \lambda_{BH}(i)\,\sqrt{1 + \frac{1}{n-i}\sum_{j < i}\lambda_G(j)^2}$$
 
-then flattens at the global minimum to preserve convexity: $\lambda_G^*(i) = \lambda_G\!\left(\min(i,\, k^*)\right)$.
+then flattens at the global minimum to preserve convexity: $\lambda_G^*(i) = \lambda_G\left(\min(i,\, k^*)\right)$.
 
 ---
 
