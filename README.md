@@ -26,7 +26,7 @@ Reproduces the simulations and benchmark from:
 
 SLOPE minimizes a sorted-L1-penalized least squares objective:
 
-$$\hat{\beta} = \arg\min_{b \in \mathbb{R}^p} \frac{1}{2}\lVerty - Xb\rVert_{2}^{2} + \sum_{i=1}^{p} \lambda_{i} \lvert b \rvert_{(i)}$$
+$$\hat{\beta} = \arg\min_{b \in \mathbb{R}^p} \frac{1}{2}\lVert y - Xb\rVert_{2}^{2} + \sum_{i=1}^{p} \lambda_{i} \lvert b \rvert_{(i)}$$
 
 where $\lvert b \rvert_{(1)} \ge \cdots \ge \lvert b \rvert_{(p)}$ are the sorted absolute coefficients and $\lambda_1 \ge \cdots \ge \lambda_p \ge 0$ is a non-increasing penalty sequence that controls the **False Discovery Rate**.
 
