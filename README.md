@@ -40,11 +40,7 @@ $$\lambda_{\mathrm{BH}}(i) = \sigma\Phi^{-1}\left(1 - \frac{iq}{2p}\right)$$
 
 $$\lambda_G(i) = \lambda_{\mathrm{BH}}(i)\sqrt{1 + \frac{1}{n-i}\sum_{j < i}\lambda_G(j)^2}$$
 
-then flattens at the global minimum $k^{*}$ to preserve convexity:
-
-$$
-\lambda_{G}^{*}(i) = \lambda_{G}\left(\min(i, k^{*})\right)
-$$
+then flattens at the global minimum $k^{*}$ to preserve convexity: $\lambda_{G}^{\*}(i) = \lambda_{G}\left(\min(i, k^{\*})\right)$
 
 ---
 
