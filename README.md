@@ -39,7 +39,7 @@ where $|b|_{(1)} \ge \cdots \ge |b|_{(p)}$ are the sorted absolute coefficients 
 
 The Gaussian sequence inflates BH recursively to account for correlations:
 
-$$\lambda_G(i) = \lambda_{BH}(i)\,\sqrt{1 + \frac{1}{n-i}\sum_{j < i}\lambda_G(j)^2}$$
+$$\lambda_G(i) = \lambda_{BH}(i)\sqrt{1 + \frac{1}{n-i}\sum_{j < i}\lambda_G(j)^2}$$
 
 then flattens at the global minimum to preserve convexity: $\lambda_G^*(i) = \lambda_G\left(\min(i,\, k^*)\right)$.
 
