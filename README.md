@@ -1,119 +1,133 @@
-# SLOPE: Sorted L-One Penalized Estimation
+<div align="center">
 
-Python reference implementation of the **SLOPE** (Sorted L-One Penalized Estimation) regularized regression method, reproducing the simulations and competing methods benchmark from the seminal paper:
-> **Bogdan, M., van den Berg, E., Sabatti, C., Su, W., & Candès, E. J. (2015).** *SLOPE—Adaptive Variable Selection via Convex Optimization.* The Annals of Applied Statistics, 9(3), 1103–1140.
+# SLOPE
 
----
+### Sorted L-One Penalized Estimation
 
-## 📖 Theoretical Overview
+*Python reference implementation · Bogdan et al. (2015)*
 
-SLOPE is a regularized linear regression method designed to solve the problem of variable selection while controlling the **False Discovery Rate (FDR)**. The SLOPE estimator is defined as:
+[![Python](https://img.shields.io/badge/python-3.9%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests/test_slope.py)
+[![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
-$$\hat{\beta} = \arg\min_{b \in \mathbb{R}^p} \frac{1}{2} \|y - Xb\|_2^2 + \sum_{i=1}^p \lambda_i |b|_{(i)}$$
-
-where:
-- $|b|_{(1)} \ge |b|_{(2)} \ge \dots \ge |b|_{(p)}$ are the sorted absolute values of the coefficients in decreasing order.
-- $\lambda_1 \ge \lambda_2 \ge \dots \ge \lambda_p \ge 0$ is a non-increasing sequence of regularization parameters.
-
-### Penalty Sequences
-1. **Benjamini-Hochberg Sequence ($\lambda_{BH}$):** Used for orthogonal designs:
-   $$\lambda_{BH}(i) = \sigma \Phi^{-1}\left(1 - \frac{i \cdot q}{2p}\right)$$
-   where $q$ is the target FDR level and $\Phi^{-1}$ is the standard normal quantile function.
-2. **Gaussian-Adjusted Sequence ($\lambda_{G}^*$):** Corrects for correlation in Gaussian design matrices by recursively adjusting the variance using Wishart degrees of freedom:
-   $$\lambda_G(i) = \lambda_{BH}(i) \sqrt{1 + \frac{1}{n - i} \sum_{j < i} \lambda_G(j)^2}$$
-   The final sequence is flattened starting at the global minimum $k^*$ to maintain convexity: $\lambda_G^*(i) = \lambda_G(\min(i, k^*))$.
+</div>
 
 ---
 
-## ⚡ Algorithms Implemented
+Reproduces the simulations and benchmark from:
 
-- **FastProxSL1 (Algorithm 4):** A stack-based pool-adjacent-violators-type algorithm that computes the proximal operator of the sorted $\ell_1$ norm in $O(p)$ time (after $O(p \log p)$ sorting).
-- **FISTA Solver (Algorithm 2):** An accelerated proximal gradient method that fits SLOPE coefficients efficiently.
-- **Scaled SLOPE (Algorithm 5):** An iterative algorithm that estimates the noise standard deviation $\sigma$ and fits SLOPE dynamically when the noise level is unknown.
+> Bogdan, M., van den Berg, E., Sabatti, C., Su, W., & Candès, E. J. (2015).
+> *SLOPE — Adaptive Variable Selection via Convex Optimization.*
+> **The Annals of Applied Statistics**, 9(3), 1103–1140.
 
 ---
 
-## 📁 Repository Structure
+## The estimator
+
+SLOPE minimizes a sorted-L1-penalized least squares objective:
+
+$$\hat{\beta} = \arg\min_{b \in \mathbb{R}^p} \frac{1}{2}\lVert y - Xb\rVert_{2}^{2} + \sum_{i=1}^{p} \lambda_{i} \lvert b \rvert_{(i)}$$
+
+where $\lvert b \rvert_{(1)} \ge \cdots \ge \lvert b \rvert_{(p)}$ are the sorted absolute coefficients and $\lambda_1 \ge \cdots \ge \lambda_p \ge 0$ is a non-increasing penalty sequence that controls the **False Discovery Rate**.
+
+### Penalty sequences
+
+**Benjamini–Hochberg** (orthogonal designs):
+
+$$\lambda_{\mathrm{BH}}(i) = \sigma\Phi^{-1}\left(1 - \frac{iq}{2p}\right)$$
+
+**Gaussian-adjusted** $\lambda_G^*$ (correlated / Gaussian designs): inflates $\lambda_{\mathrm{BH}}$ recursively by a Wishart correction factor,
+
+$$\lambda_G(i) = \lambda_{\mathrm{BH}}(i)\sqrt{1 + \frac{1}{n-i}\sum_{j < i}\lambda_G(j)^2}$$
+
+then flattens at the global minimum $k^{*}$ to preserve convexity: $\lambda_{G}^{\*}(i) = \lambda_{G}\left(\min(i, k^{\*})\right)$
+
+---
+
+## Algorithms
+
+| Function | Ref | Description |
+|:---|:---:|:---|
+| `fast_prox_sl1` | Alg. 4 | PAV proximal operator for sorted-L1, $O(p)$ after sort |
+| `fista_slope` | Alg. 2 | FISTA accelerated proximal gradient solver |
+| `scaled_slope` | Alg. 5 | Iterative SLOPE with unknown $\sigma$ |
+| `lambda_bh` | § 2 | Benjamini–Hochberg penalty sequence |
+| `lambda_g_star` | § 3.2.2 | Gaussian-adjusted penalty sequence |
+| `lambda_mc` | § 3.2.2 | Monte Carlo adjusted sequence |
+
+---
+
+## Repository
 
 ```
-.
-├── README.md               # This documentation
-├── run_all.py              # Master script to run all simulations and analyses
-├── slope/
-│   ├── __init__.py         # Package exports
-│   └── solvers.py          # Solvers, prox operator, and penalty sequences
-├── simulations/
-│   ├── __init__.py
-│   ├── simulation_1.py     # Reproduces Section 1.3.3 metrics (FDR, Power, MSE)
-│   └── simulation_2.py     # Reproduces Section 3.1 equicorrelated testing
-├── real_data/
-│   ├── __init__.py
-│   └── real_data_analysis.py # Diabetes pairwise interactions benchmark
-├── tests/
-│   └── test_slope.py       # Unit tests verifying solvers and prox operator
-├── paper/
-│   └── Bogdan et al. - 2015 - Slope—adaptive variable selection via convex optimization.pdf
-├── figures/                # Output plots
-└── tables/                 # Summary datasets
+slope/
+└── solvers.py              all algorithms and penalty sequences
+
+simulations/
+├── simulation_1.py         § 1.3.3 — FDR / Power / MSE comparison
+└── simulation_2.py         § 3.1   — equicorrelated noise
+
+real_data/
+└── real_data_analysis.py   diabetes interactions benchmark (n=442, p=55)
+
+tests/
+└── test_slope.py           unit tests
+
+run_all.py                  run everything
 ```
 
 ---
 
-## 🚀 Getting Started
+## Quick start
 
-### Prerequisites
-Make sure you have Python 3.9+ and the package manager `uv` installed. If you don't have `uv`, install it via pip:
-```bash
-pip install uv
-```
+> **Requirements:** Python 3.9+, [`uv`](https://github.com/astral-sh/uv)
 
-### Installation
-Clone this repository and run a test to ensure everything is set up:
 ```bash
 git clone https://github.com/rkmishra1/SLOPE.git
 cd SLOPE
+pip install -e .
 uv run --with numpy --with scipy python -m unittest discover -s tests
 ```
 
-### Run All Experiments
-To run the full suite of simulations and the real data analysis:
+**Run all experiments:**
 
 ```bash
-# Run in fast mode (fewer replicates, ~10s execution)
-uv run --with numpy --with scipy --with matplotlib --with scikit-learn --with pandas python run_all.py --mode fast
+# fast mode  (~10 s · 5 replicates)
+uv run --with numpy --with scipy --with matplotlib --with scikit-learn --with pandas \
+    python run_all.py --mode fast
 
-# Run in full mode (more replicates, ~5 mins execution)
-uv run --with numpy --with scipy --with matplotlib --with scikit-learn --with pandas python run_all.py --mode full
+# full mode  (~5 min · 100 replicates)
+uv run --with numpy --with scipy --with matplotlib --with scikit-learn --with pandas \
+    python run_all.py --mode full
 ```
 
 ---
 
-## 📊 Summary of Results
+## Results
 
-### Simulation 1: Metrics comparison
-Controls FDR at $q=0.1$ while achieving high power and lowest relative MSE:
-- **SLOPE** (de-biased): Controls FDR, has high power, and yields the best prediction performance.
-- **Lasso-Bonferroni**: Overly conservative, has low power.
-- **Lasso-CV**: High power, but suffers from an inflated FDR (~80%).
+### Simulation 1 — FDR / Power / MSE
 
-*Generated Plot:* `figures/sim1_metrics.png`
+At target $q = 0.1$, SLOPE (de-biased) is the only method that simultaneously controls FDR, achieves high power, and attains the lowest relative MSE. Lasso-Bonferroni is overly conservative; Lasso-CV inflates FDR to ~80%.
 
-### Simulation 2: Equicorrelated noise multiple testing
-- **Marginal BH** is conservative and exhibits high variance in False Discovery Proportion.
-- **SLOPE** (whitened) uses the covariance structure to achieve significantly higher power and stable FDR control.
+<p align="center"><img src="figures/sim1_metrics.png" width="780"/></p>
 
-*Generated Plot:* `figures/sim2_correlated.png`
+### Simulation 2 — Equicorrelated noise
 
-### Real Data: Diabetes pairwise interactions ($n=442, p=55$)
-Sparsity and fit comparison of SLOPE versus competing methods (saved in `tables/real_data_summary.csv`):
+Whitened SLOPE exploits the covariance structure for higher power and stable FDR control. Marginal BH is conservative with high variance in false discovery proportion.
 
-| Method | Selected Variables | R-squared ($R^2$) | Noise $\sigma$ Estimate |
-| :--- | :---: | :---: | :---: |
-| **SLOPE** | 41 | 0.5761 | 52.7029 |
-| **Lasso-Bonf** | 37 | 0.5748 | 53.1148 |
-| **Lasso-CV** | 14 | 0.5301 | *N/A* |
-| **Stepwise-BIC** | 7 | 0.5340 | *N/A* |
-| **Marginal-BH** | 14 | 0.5183 | *N/A* |
-| **Full-model-BH** | 3 | 0.3998 | 53.1148 |
+<p align="center"><img src="figures/sim2_correlated.png" width="540"/></p>
 
-*Generated Plot:* `figures/real_data_coefs.png`
+### Real data — Diabetes interactions
+
+$n = 442,\; p = 55$ pairwise interaction features.
+
+| Method | Selected vars | $R^2$ | $\hat{\sigma}$ |
+|:---|:---:|:---:|:---:|
+| **SLOPE** | **41** | **0.5761** | 52.70 |
+| Lasso-Bonf | 37 | 0.5748 | 53.11 |
+| Lasso-CV | 14 | 0.5301 | — |
+| Stepwise-BIC | 7 | 0.5340 | — |
+| Marginal-BH | 14 | 0.5183 | — |
+| Full-model-BH | 3 | 0.3998 | 53.11 |
+
+<p align="center"><img src="figures/real_data_coefs.png" width="700"/></p>
