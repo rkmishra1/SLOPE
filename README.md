@@ -26,37 +26,36 @@ Reproduces the simulations and benchmark from:
 
 SLOPE minimizes a sorted-L1-penalized least squares objective:
 
-$$\hat{\beta} = \underset{b \in \mathbb{R}^p}{\arg\min} \frac{1}{2}\|y - Xb\|_2^2 + \sum_{i=1}^p \lambda_i |b|_{(i)}$$
+$$\hat{\beta} = \arg\min_{b \in \mathbb{R}^p} \frac{1}{2}\|y - Xb\|_2^2 + \sum_{i=1}^p \lambda_i \lvert b \rvert_{(i)}$$
 
-where $|b|_{(1)} \ge \cdots \ge |b|_{(p)}$ are the sorted absolute coefficients and $\lambda_1 \ge \cdots \ge \lambda_p \ge 0$ is a non-increasing penalty sequence that controls the **False Discovery Rate**.
+where $\lvert b \rvert_{(1)} \ge \cdots \ge \lvert b \rvert_{(p)}$ are the sorted absolute coefficients and $\lambda_1 \ge \cdots \ge \lambda_p \ge 0$ is a non-increasing penalty sequence that controls the **False Discovery Rate**.
 
 ### Penalty sequences
 
-| Sequence | Formula | Use when |
-|:---|:---|:---|
-| **BH** $(\lambda_{BH})$ | $\sigma\Phi^{-1}\left(1 - \frac{iq}{2p}\right)$ | Orthogonal / independent designs |
-| **Gaussian** $(\lambda_G^*)$ | Wishart-corrected BH, flattened at global min $k^*$ | Gaussian / correlated designs |
+**Benjamini–Hochberg** (orthogonal designs):
 
-The Gaussian sequence inflates BH recursively to account for correlations:
+$$\lambda_{\mathrm{BH}}(i) = \sigma\,\Phi^{-1}\!\left(1 - \frac{iq}{2p}\right)$$
 
-$$\lambda_G(i) = \lambda_{BH}(i)\sqrt{1 + \frac{1}{n-i}\sum_{j < i}\lambda_G(j)^2}$$
+**Gaussian-adjusted** $\lambda_G^*$ (correlated / Gaussian designs): inflates $\lambda_{\mathrm{BH}}$ recursively by a Wishart correction factor,
 
-then flattens at the global minimum to preserve convexity: $\lambda_G^*(i) = \lambda_G\left(\min(i,\, k^*)\right)$.
+$$\lambda_G(i) = \lambda_{\mathrm{BH}}(i)\sqrt{1 + \frac{1}{n-i}\sum_{j < i}\lambda_G(j)^2}$$
+
+then flattens at the global minimum $k^*$ to preserve convexity:
+
+$$\lambda_G^*(i) = \lambda_G\!\left(\min(i,\, k^*)\right)$$
 
 ---
 
 ## Algorithms
 
-| Function | Ref | Complexity | Description |
-|:---|:---:|:---:|:---|
-| `fast_prox_sl1` | Alg. 4 | $O(p)$† | PAV proximal operator for the sorted-L1 norm |
-| `fista_slope` | Alg. 2 | — | FISTA accelerated proximal gradient solver |
-| `scaled_slope` | Alg. 5 | — | Iterative SLOPE with unknown $\sigma$ |
-| `lambda_bh` | § 2 | $O(p)$ | Benjamini–Hochberg penalty sequence |
-| `lambda_g_star` | § 3.2.2 | $O(p)$ | Gaussian-adjusted penalty sequence |
-| `lambda_mc` | § 3.2.2 | $O(p \cdot \text{draws})$ | Monte Carlo adjusted sequence |
-
-*† After $O(p \log p)$ sort.*
+| Function | Ref | Description |
+|:---|:---:|:---|
+| `fast_prox_sl1` | Alg. 4 | PAV proximal operator for sorted-L1, $O(p)$ after sort |
+| `fista_slope` | Alg. 2 | FISTA accelerated proximal gradient solver |
+| `scaled_slope` | Alg. 5 | Iterative SLOPE with unknown $\sigma$ |
+| `lambda_bh` | § 2 | Benjamini–Hochberg penalty sequence |
+| `lambda_g_star` | § 3.2.2 | Gaussian-adjusted penalty sequence |
+| `lambda_mc` | § 3.2.2 | Monte Carlo adjusted sequence |
 
 ---
 
@@ -122,7 +121,7 @@ Whitened SLOPE exploits the covariance structure for higher power and stable FDR
 
 ### Real data — Diabetes interactions
 
-$n = 442,\; p = 55$ pairwise interaction features. SLOPE selects the most variables while maintaining competitive $R^2$ and the lowest noise estimate.
+$n = 442,\; p = 55$ pairwise interaction features.
 
 | Method | Selected vars | $R^2$ | $\hat{\sigma}$ |
 |:---|:---:|:---:|:---:|
