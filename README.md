@@ -34,7 +34,7 @@ where $\lvert b \rvert_{(1)} \ge \cdots \ge \lvert b \rvert_{(p)}$ are the sorte
 
 **Benjamini–Hochberg** (orthogonal designs):
 
-$$\lambda_{\mathrm{BH}}(i) = \sigma\,\Phi^{-1}\!\left(1 - \frac{iq}{2p}\right)$$
+$$\lambda_{\mathrm{BH}}(i) = \sigma\,\Phi^{-1}\left(1 - \frac{iq}{2p}\right)$$
 
 **Gaussian-adjusted** $\lambda_G^*$ (correlated / Gaussian designs): inflates $\lambda_{\mathrm{BH}}$ recursively by a Wishart correction factor,
 
@@ -42,7 +42,7 @@ $$\lambda_G(i) = \lambda_{\mathrm{BH}}(i)\sqrt{1 + \frac{1}{n-i}\sum_{j < i}\lam
 
 then flattens at the global minimum $k^*$ to preserve convexity:
 
-$$\lambda_G^*(i) = \lambda_G\!\left(\min(i,\, k^*)\right)$$
+$$\lambda_G^*(i) = \lambda_G\!\left(\min(i, k^*)\right)$$
 
 ---
 
