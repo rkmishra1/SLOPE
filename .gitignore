@@ -1,0 +1,23 @@
+# Python Cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS generated files
+.DS_Store
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Python IDEs
+.idea/
+.vscode/
+
+# Build and dist
+build/
+dist/
+*.egg-info/
